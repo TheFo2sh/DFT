@@ -19,59 +19,32 @@ namespace DFT
 {
     public static class Ex
     {
-        public static IEnumerable<DrawingData> DFT(this double[] source)
+        public static Complex[] DFT(this double[] source)
         {
-            var N = source.Count();
-            for (var k = 0; k < N; k++)
-            {
-                var re = 0.0;
-                var im = 0.0;
-                for (var n = 0; n < N; n++)
-                {
-                    var phi  = (2*Math.PI * k * n) / N;
-                    re += source[n] * Math.Cos(phi);
-                    im -= source[n] * Math.Sin(phi);
-                }
-
-                re = re / N;
-                im = im / N;
-
-                var freq = k;
-                var amp = Math.Sqrt(re * re + im * im);
-                var phase = Math.Atan2(im, re);
-                yield return new DrawingData() {Amplitude = amp, Frequency = freq, Phase = phase};
-            }
+            var complexes=source.Select(x => new Complex(x, 0)).ToArray();
+            FourierTransform2.DFT(complexes,FourierTransform.Direction.Backward);
+            return complexes;
+            
         }
 
 
-        public static IEnumerable<T> Reduce<T>(this T[] source,int n)
+        public static SKPoint ToPoint(this Complex item,int freq, double time, double x, double y, double rotation)
         {
-            for (int i = 0; i < source.Length; i+=n)
-            {
-                yield return source[i];
-            }
-        }
-
-    
-        public static SKPoint ToPoint(this IEnumerable<DrawingData> drawingData,
-            double time, double x, double y,double rotation)
-        {
-            foreach (var item in drawingData)
-            {
-                x += item.Amplitude * Math.Cos(item.Frequency * time +rotation+ item.Phase);
-                y += item.Amplitude * Math.Sin(item.Frequency * time + rotation + item.Phase);
-            }
+            x += item.Magnitude * Math.Cos(freq * time + rotation + item.Phase);
+            y += item.Magnitude * Math.Sin(freq * time + rotation + item.Phase);
             return new SKPoint((float)x, (float)y);
+
+        }
+        public static SKPoint ToPoint(this IEnumerable<Complex> drawingData,
+            double time, float x, float y,double rotation)
+        {
+           return drawingData.Select((complex, index) => (complex, index)).Aggregate(new SKPoint(x,y),
+                (acumulitave, item) => item.complex.ToPoint(item.index, time, acumulitave.X, acumulitave.Y, rotation));
+           
         }
     }
 
-    public class DrawingData
-    {
-        public double Amplitude { get; set; }
-        public double Frequency { get; set; }
-        public double Phase { get; set; }
-
-    }
+   
     // Learn more about making custom code visible in the Xamarin.Forms previewer
     // by visiting https://aka.ms/xamarinforms-previewer
     [DesignTimeVisible(false)]
@@ -98,8 +71,8 @@ namespace DFT
         }
 
         public int Count { get; set; }
-        private IEnumerable<DrawingData> _complexesY;
-        private IEnumerable<DrawingData> _complexesX;
+        private List<Complex> _complexesY;
+        private List<Complex> _complexesX;
 
         private  async void SKCanvasView_OnPaintSurface(object sender, SKPaintSurfaceEventArgs e)
         {
