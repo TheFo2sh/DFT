@@ -21,26 +21,44 @@ namespace DFT
     {
         public static Complex[] DFT(this double[] source)
         {
-            var complexes=source.Select(x => new Complex(x, 0)).ToArray();
-            FourierTransform2.DFT(complexes,FourierTransform.Direction.Backward);
+            var complexes = source.Select(x =>  new Complex(x, 0)).ToArray();
+            FourierTransform2.DFT(complexes, FourierTransform.Direction.Backward);
+            return complexes;
+
+        }
+        public static Complex[][] DFT(this double[][] source)
+        {
+            List<Complex[]> res = new List<Complex[]>();
+            var val = source.Select(item => item[0]).ToArray().DFT();
+            var val2 = source.Select(item => item[1]).ToArray().DFT();
+            for (int i = 0; i < val.Count(); i++)
+            {
+                res.Add(new Complex[] { val[i], val2[i] });
+            }
+
+            return res.ToArray();
+            var complexes=source.Select(item =>item.Select(x=> new Complex(x, 0)).ToArray()).ToArray();
+            FourierTransform2.DFT2(complexes,FourierTransform.Direction.Backward);
+            
             return complexes;
             
         }
 
 
-        public static SKPoint ToPoint(this Complex item,int freq, double time, double x, double y, double rotation)
+     
+        public static SKPoint ToPoint(this List<Complex[]> drawingData,
+            double time, double x, double y)
         {
-            x += item.Magnitude * Math.Cos(freq * time + rotation + item.Phase);
-            y += item.Magnitude * Math.Sin(freq * time + rotation + item.Phase);
-            return new SKPoint((float)x, (float)y);
+            for (int i = 0; i < drawingData.Count(); i++)
+            {
+                var item = drawingData[i];
+                x += item[0].Magnitude * Math.Cos(i * time + 0 + item[0].Phase);
+                y += item[1].Magnitude * Math.Sin(i * time + Math.PI/2 + item[1].Phase);
+            }
 
-        }
-        public static SKPoint ToPoint(this IEnumerable<Complex> drawingData,
-            double time, float x, float y,double rotation)
-        {
-           return drawingData.Select((complex, index) => (complex, index)).Aggregate(new SKPoint(x,y),
-                (acumulitave, item) => item.complex.ToPoint(item.index, time, acumulitave.X, acumulitave.Y, rotation));
-           
+            return new SKPoint((float) x, (float) y);
+
+
         }
     }
 
@@ -63,34 +81,35 @@ namespace DFT
         {
             var points = Drawing.TwitterImagePoints;
             Count = points.Length;
-            _complexesX = points.Select(item => item.x).ToArray().DFT().ToList();
-            _complexesY = points.Select(item => item.y).ToArray().DFT().ToList();
+            var items = points.Select(item => new[] {item.x, item.y}).ToArray();
+            _complex = items.DFT().ToList();
 
 
           
         }
 
         public int Count { get; set; }
-        private List<Complex> _complexesY;
-        private List<Complex> _complexesX;
+        private List<Complex[]> _complex;
 
         private  async void SKCanvasView_OnPaintSurface(object sender, SKPaintSurfaceEventArgs e)
         {
             var canvas = e.Surface.Canvas;
 
-            var combinedX= _complexesX.ToPoint(time,500,500,0);
-            var combinedY = _complexesY.ToPoint(time, 500, 500,Math.PI/2);
+            var point= _complex.ToPoint(time,500,500);
 
-            _path.Insert(0, new SKPoint(combinedX.X,combinedY.Y));
+            _path.Insert(0, point);
 
             canvas.DrawPoints(SKPointMode.Polygon, _path.ToArray(), new SKPaint()
             {
                 Color = SKColors.Black,
                 StrokeWidth = 5,
                 StrokeJoin = SKStrokeJoin.Round,
+                FilterQuality = SKFilterQuality.High,
                 StrokeCap = SKStrokeCap.Round,
                 IsAntialias = true,
-                IsStroke = true
+                HintingLevel = SKPaintHinting.NoHinting,
+                Style = SKPaintStyle.Fill,
+                DeviceKerningEnabled = true
             });
             
 
